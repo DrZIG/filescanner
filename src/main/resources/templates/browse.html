@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{layout :: head(${current.name})}"></head>
+<body>
+<div th:replace="~{layout :: body(content=~{::content-frag}, pageTitle=${current.name}, currentPage='home', scanStatus=${scanStatus}, refreshSeconds=${refreshSeconds})}">
+<th:block th:fragment="content-frag">
+<div class="breadcrumb">
+    <a href="/" class="breadcrumb-item">⬡ Home</a>
+    <span class="breadcrumb-sep">›</span>
+    <th:block th:each="crumb,iter : ${breadcrumb}">
+        <a th:href="${iter.last}?'#':'/browse?id='+${crumb.id}"
+           th:class="${iter.last}?'breadcrumb-item current':'breadcrumb-item'"
+           th:text="${crumb.name}"></a>
+        <span class="breadcrumb-sep" th:unless="${iter.last}">›</span>
+    </th:block>
+</div>
+<div class="main">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:16px">
+        <div>
+            <div style="font-family:var(--sans);font-size:20px;font-weight:700;margin-bottom:4px">
+                <span th:text="${current.icon}"></span> <span th:text="${current.name}"></span>
+            </div>
+            <div style="color:var(--text3);font-size:11px;word-break:break-all" th:text="${current.fullPath}"></div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+            <label class="dnp-toggle" th:class="${current.doNotProcess}?'dnp-toggle active':'dnp-toggle'"
+                   style="font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:6px">
+                <input type="checkbox" class="dnp-checkbox" th:data-id="${current.id}" th:checked="${current.doNotProcess}">
+                Do Not Process
+            </label>
+            <a th:href="${current.parentId!=null}?'/browse?id='+${current.parentId}:'/'" class="btn">← Back</a>
+        </div>
+    </div>
+    <div th:if="${current.doNotProcess}" class="alert alert-warning">⚠️ This folder is marked <strong>Do Not Process</strong>. It will be skipped during scanning.</div>
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title">Contents</span>
+            <span style="color:var(--text3);font-size:11px;margin-left:auto" th:text="${#lists.size(children)} + ' items'"></span>
+        </div>
+        <div th:if="${#lists.isEmpty(children)}" class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <div class="empty-state-title">Empty folder</div>
+            <div style="color:var(--text3);font-size:12px;margin-top:8px">No contents scanned yet, or folder is marked Do Not Process.</div>
+        </div>
+        <div class="scroll-x" th:if="${!#lists.isEmpty(children)}">
+            <table class="file-table">
+                <thead><tr><th style="width:50%">Name</th><th>Size</th><th>Type</th><th>On Disk</th><th style="width:140px">Do Not Process</th></tr></thead>
+                <tbody>
+                    <tr th:each="entry:${children}" th:id="'row-'+${entry.id}"
+                        th:class="${!entry.existsOnDisk}?'missing':(${entry.doNotProcess}?'do-not-process':'')">
+                        <td>
+                            <div class="entry-name">
+                                <span class="entry-icon" th:text="${entry.icon}"></span>
+                                <a th:if="${!entry.file}" th:href="@{/browse(id=${entry.id})}" class="entry-label folder-link" th:text="${entry.name}"></a>
+                                <span th:if="${entry.file}" class="entry-label" th:text="${entry.name}"></span>
+                            </div>
+                        </td>
+                        <td><span class="size-badge" th:text="${entry.file}?${entry.sizeHuman}:'—'"></span></td>
+                        <td style="color:var(--text3)"><span th:text="${entry.file}?'📄 File':'📁 Folder'"></span></td>
+                        <td>
+                            <span th:if="${entry.existsOnDisk}"  style="color:var(--accent2);font-size:11px">✓</span>
+                            <span th:unless="${entry.existsOnDisk}" style="color:var(--danger);font-size:11px">✗</span>
+                        </td>
+                        <td>
+                            <label th:if="${!entry.file}" class="dnp-toggle" th:class="${entry.doNotProcess}?'dnp-toggle active':'dnp-toggle'">
+                                <input type="checkbox" class="dnp-checkbox" th:data-id="${entry.id}" th:checked="${entry.doNotProcess}"> Skip
+                            </label>
+                            <span th:if="${entry.file}" style="color:var(--text3)">—</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+</th:block>
+</div>
+</body>
+</html>

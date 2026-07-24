@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{layout :: head('Explorer')}"></head>
+<body>
+<div th:replace="~{layout :: body(content=~{::content-frag}, pageTitle='Explorer', currentPage='home', scanStatus=${scanStatus}, refreshSeconds=${refreshSeconds})}">
+<th:block th:fragment="content-frag">
+<div class="main">
+    <div th:if="${param.emailSent}"  class="alert alert-success">✅ Report email sent.</div>
+    <div th:if="${param.emailError}" class="alert alert-danger">❌ <span th:text="${param.emailError[0]}"></span></div>
+
+    <!-- SCAN CONTROL -->
+    <div class="scan-panel">
+        <h2>🔍 Scan Control</h2>
+        <div class="scan-actions">
+            <form th:action="@{/scan/start}" method="post" style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-primary"
+                        th:disabled="${scanStatus!=null && (scanStatus.state.name()=='RUNNING' || scanStatus.state.name()=='PAUSED')}">
+                    ▶ Start Scan
+                </button>
+                <button type="submit" name="sendEmail" value="true" class="btn btn-success"
+                        th:disabled="${scanStatus!=null && (scanStatus.state.name()=='RUNNING' || scanStatus.state.name()=='PAUSED')}">
+                    ▶ Scan + Email
+                </button>
+            </form>
+            <!-- Pause / Resume (duplicated here for convenience) -->
+            <button class="btn btn-warning" onclick="doScanPause()"
+                    th:style="${scanStatus==null || scanStatus.state.name()!='RUNNING'} ? 'display:none' : ''"
+                    id="page-btn-pause">⏸ Pause</button>
+            <button class="btn btn-primary" onclick="doScanResume()"
+                    th:style="${scanStatus==null || scanStatus.state.name()!='PAUSED'} ? 'display:none' : ''"
+                    id="page-btn-resume">▶ Resume</button>
+            <form th:action="@{/scan/stop}" method="post" style="display:inline">
+                <button type="submit" class="btn btn-danger"
+                        th:disabled="${scanStatus==null || (scanStatus.state.name()!='RUNNING' && scanStatus.state.name()!='PAUSED')}">
+                    ⏹ Stop
+                </button>
+            </form>
+            <form th:action="@{/email/send}" method="post" style="display:inline">
+                <button type="submit" class="btn">📧 Send Report Only</button>
+            </form>
+        </div>
+
+        <div class="scan-info" th:if="${scanStatus!=null && (scanStatus.state.name()=='RUNNING' || scanStatus.state.name()=='PAUSED')}">
+            <div class="scan-info-row">
+                <div class="scan-stat">Drive: <strong th:text="${scanStatus.currentDrive}"></strong></div>
+                <div class="scan-stat">Folders: <strong th:text="${scanStatus.foldersScanned}"></strong></div>
+                <div class="scan-stat">Files: <strong th:text="${scanStatus.filesScanned}"></strong></div>
+            </div>
+            <div style="margin-top:8px;color:var(--text3);font-size:11px">
+                <span th:if="${scanStatus.state.name()=='PAUSED'}" style="color:var(--accent)">⏸ PAUSED — </span>
+                <span th:text="${scanStatus.currentPath}" style="color:var(--text2)"></span>
+            </div>
+            <div style="margin-top:6px;color:var(--text3);font-size:10px">Status refreshes every <span th:text="${refreshSeconds}"></span>s</div>
+        </div>
+        <div class="scan-info" th:if="${scanStatus!=null && scanStatus.state.name()=='COMPLETED'}">
+            <div class="scan-stat" th:text="${scanStatus.message}"></div>
+            <div style="margin-top:6px;display:flex;gap:20px;flex-wrap:wrap">
+                <div class="scan-stat" th:if="${scanStatus.startTime!=null}">Started: <strong th:text="${#temporals.format(scanStatus.startTime,'yyyy-MM-dd HH:mm:ss')}"></strong></div>
+                <div class="scan-stat" th:if="${scanStatus.endTime!=null}">Finished: <strong th:text="${#temporals.format(scanStatus.endTime,'yyyy-MM-dd HH:mm:ss')}"></strong></div>
+            </div>
+        </div>
+        <div class="scan-info" th:if="${scanStatus!=null && scanStatus.state.name()=='ERROR'}">
+            <span style="color:var(--danger)" th:text="${scanStatus.message}"></span>
+        </div>
+    </div>
+
+    <!-- DRIVES & ROOTS -->
+    <div class="panel">
+        <div class="panel-header">
+            <span class="panel-title">📀 Scanned Drives &amp; Shares</span>
+            <span style="flex:1"></span>
+            <a th:href="@{/shares}" class="btn btn-sm">🌐 Manage Shares</a>
+            <a th:href="@{/manage-roots}" class="btn btn-sm" style="margin-left:6px">💾 Manage Roots</a>
+        </div>
+        <div th:if="${#lists.isEmpty(roots)}" class="empty-state">
+            <div class="empty-state-icon">🗄️</div>
+            <div class="empty-state-title">No data yet</div>
+            <div style="color:var(--text3);font-size:12px;margin-top:8px">Run a scan to populate the database.</div>
+        </div>
+        <div class="scroll-x" th:if="${!#lists.isEmpty(roots)}">
+            <table class="file-table">
+                <thead><tr><th>Path</th><th>Status</th><th>Skip</th></tr></thead>
+                <tbody>
+                    <tr th:each="entry : ${roots}" th:id="'row-'+${entry.id}"
+                        th:class="${!entry.existsOnDisk}?'missing':(${entry.doNotProcess}?'do-not-process':'')">
+                        <td>
+                            <div class="entry-name">
+                                <span class="entry-icon" th:text="${entry.icon}"></span>
+                                <a th:href="@{/browse(id=${entry.id})}" class="entry-label folder-link" th:text="${entry.name}"></a>
+                            </div>
+                        </td>
+                        <td>
+                            <span th:if="${entry.existsOnDisk}"  style="color:var(--accent2);font-size:11px">✓ accessible</span>
+                            <span th:unless="${entry.existsOnDisk}" style="color:var(--danger);font-size:11px">✗ not found</span>
+                        </td>
+                        <td>
+                            <label class="dnp-toggle" th:class="${entry.doNotProcess}?'dnp-toggle active':'dnp-toggle'">
+                                <input type="checkbox" class="dnp-checkbox" th:data-id="${entry.id}" th:checked="${entry.doNotProcess}">
+                                Do Not Process
+                            </label>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<script th:inline="javascript">
+    // Mirror pause/resume state on page-level buttons
+    const origUpdate = updateStatus;
+    // Patch in page-specific button visibility
+    const _orig = window.updateStatus || function(){};
+    setInterval(async () => {
+        try {
+            const s = await (await fetch('/scan/status')).json();
+            const pb = document.getElementById('page-btn-pause');
+            const rb = document.getElementById('page-btn-resume');
+            if (pb) pb.style.display  = s.state==='RUNNING' ? '' : 'none';
+            if (rb) rb.style.display  = s.state==='PAUSED'  ? '' : 'none';
+        } catch(e){}
+    }, /*[[${refreshSeconds}]]*/ 10 * 1000);
+</script>
+</th:block>
+</div>
+</body>
+</html>

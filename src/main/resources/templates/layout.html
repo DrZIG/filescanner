@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:fragment="head(pageTitle)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle} + ' — DrZIG FileScanner'">FileScanner</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root{--bg:#0d0f12;--surface:#14181f;--surface2:#1c2230;--surface3:#232b3a;--border:#2a3548;--accent:#3b82f6;--accent2:#10b981;--accent3:#f59e0b;--danger:#ef4444;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--mono:'JetBrains Mono',monospace;--sans:'Syne',sans-serif}
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;min-height:100vh}
+        a{color:var(--accent);text-decoration:none}a:hover{color:#60a5fa}
+        .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:52px;display:flex;align-items:center;gap:24px;position:sticky;top:0;z-index:100}
+        .topbar-logo{font-family:var(--sans);font-weight:800;font-size:18px;letter-spacing:-0.5px;color:var(--text);display:flex;align-items:center;gap:8px;flex-shrink:0}
+        .topbar-logo span{color:var(--accent)}
+        .topbar-nav{display:flex;gap:4px;flex:1}
+        .nav-link{padding:6px 14px;border-radius:6px;color:var(--text2);font-size:12px;font-weight:500;transition:all 0.15s;border:1px solid transparent}
+        .nav-link:hover{background:var(--surface2);color:var(--text)}
+        .nav-link.active{background:var(--surface3);color:var(--text);border-color:var(--border)}
+        .topbar-actions{display:flex;gap:8px;flex-shrink:0}
+        .status-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:7px 24px;display:flex;align-items:center;gap:12px;font-size:11px;min-height:36px}
+        .status-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex-shrink:0}
+        .status-dot.running{background:var(--accent3);animation:pulse 1s infinite}
+        .status-dot.paused{background:var(--accent);animation:none}
+        .status-dot.completed{background:var(--accent2)}
+        .status-dot.error{background:var(--danger)}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+        .status-path{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+        .status-controls{display:flex;gap:6px;flex-shrink:0}
+        .status-counts{color:var(--text3);flex-shrink:0}
+        .btn{padding:7px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:var(--mono);font-size:12px;cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+        .btn:hover{background:var(--surface3);border-color:var(--accent);color:var(--text)}
+        .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn-primary:hover{background:#2563eb;color:#fff}
+        .btn-success{background:var(--accent2);border-color:var(--accent2);color:#fff}.btn-success:hover{background:#059669;color:#fff}
+        .btn-warning{background:var(--accent3);border-color:var(--accent3);color:#1c1917}.btn-warning:hover{background:#d97706;color:#1c1917}
+        .btn-danger{background:transparent;border-color:var(--danger);color:var(--danger)}.btn-danger:hover{background:var(--danger);color:#fff}
+        .btn-sm{padding:4px 10px;font-size:11px}
+        .btn:disabled,button:disabled{opacity:0.4;cursor:not-allowed;pointer-events:none}
+        .main{padding:24px;max-width:1400px;margin:0 auto}
+        .panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+        .panel-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+        .panel-title{font-family:var(--sans);font-weight:700;font-size:14px;letter-spacing:0.5px;text-transform:uppercase;color:var(--text2)}
+        .file-table{width:100%;border-collapse:collapse}
+        .file-table th{padding:10px 16px;text-align:left;color:var(--text3);font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--border);background:var(--surface2)}
+        .file-table td{padding:8px 16px;border-bottom:1px solid var(--border);vertical-align:middle}
+        .file-table tr:last-child td{border-bottom:none}
+        .file-table tr:hover td{background:var(--surface2)}
+        .file-table tr.do-not-process td{opacity:0.5}
+        .entry-name{display:flex;align-items:center;gap:8px}
+        .entry-icon{font-size:16px;flex-shrink:0}
+        .entry-label{color:var(--text)}
+        .entry-label.folder-link{color:var(--accent);cursor:pointer}.entry-label.folder-link:hover{color:#60a5fa}
+        .size-badge{font-size:11px;color:var(--text3)}
+        .dnp-toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text3);cursor:pointer}
+        .dnp-toggle input[type=checkbox]{width:14px;height:14px;accent-color:var(--danger);cursor:pointer}
+        .dnp-toggle.active{color:var(--danger)}
+        .breadcrumb{display:flex;align-items:center;gap:6px;padding:12px 24px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;overflow-x:auto;white-space:nowrap}
+        .breadcrumb-sep{color:var(--text3)}
+        .breadcrumb-item{color:var(--text2)}.breadcrumb-item.current{color:var(--text)}
+        .scan-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px}
+        .scan-panel h2{font-family:var(--sans);font-size:16px;margin-bottom:12px;color:var(--text)}
+        .scan-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+        .scan-info{margin-top:14px;padding:12px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)}
+        .scan-info-row{display:flex;gap:24px;flex-wrap:wrap}
+        .scan-stat{color:var(--text2);font-size:12px}.scan-stat strong{color:var(--accent2)}
+        .form-group{margin-bottom:16px}
+        .form-label{display:block;font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:500}
+        .form-control{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:13px;padding:8px 12px;transition:border-color 0.15s}
+        .form-control:focus{outline:none;border-color:var(--accent)}
+        textarea.form-control{resize:vertical;min-height:80px}
+        select.form-control{cursor:pointer}
+        .alert{padding:10px 16px;border-radius:6px;font-size:12px;margin-bottom:16px;border:1px solid}
+        .alert-success{background:rgba(16,185,129,.1);border-color:var(--accent2);color:var(--accent2)}
+        .alert-danger{background:rgba(239,68,68,.1);border-color:var(--danger);color:var(--danger)}
+        .alert-warning{background:rgba(245,158,11,.1);border-color:var(--accent3);color:var(--accent3)}
+        .alert-info{background:rgba(59,130,246,.1);border-color:var(--accent);color:var(--accent)}
+        .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+        .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+        @media(max-width:768px){.grid-2,.grid-3{grid-template-columns:1fr}}
+        .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:24px}
+        .tab{padding:10px 20px;font-size:12px;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;text-decoration:none}
+        .tab.active{color:var(--accent);border-bottom-color:var(--accent)}.tab:hover{color:var(--text)}
+        .empty-state{text-align:center;padding:60px 20px;color:var(--text3)}
+        .empty-state-icon{font-size:48px;margin-bottom:16px}
+        .empty-state-title{font-family:var(--sans);font-size:18px;margin-bottom:8px;color:var(--text2)}
+        .scroll-x{overflow-x:auto}
+        .missing td .entry-label{text-decoration:line-through;opacity:0.6}
+        code{background:var(--surface3);padding:2px 6px;border-radius:4px;font-family:var(--mono);font-size:12px}
+        /* Modal */
+        .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center}
+        .modal-backdrop.open{display:flex}
+        .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;min-width:400px;max-width:560px;width:90%}
+        .modal-title{font-family:var(--sans);font-size:18px;font-weight:700;margin-bottom:16px}
+        .modal-actions{display:flex;gap:8px;margin-top:20px;justify-content:flex-end}
+        .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase}
+        .badge-success{background:rgba(16,185,129,.15);color:var(--accent2);border:1px solid rgba(16,185,129,.3)}
+        .badge-danger{background:rgba(239,68,68,.15);color:var(--danger);border:1px solid rgba(239,68,68,.3)}
+        .badge-warning{background:rgba(245,158,11,.15);color:var(--accent3);border:1px solid rgba(245,158,11,.3)}
+        .badge-info{background:rgba(59,130,246,.15);color:var(--accent);border:1px solid rgba(59,130,246,.3)}
+    </style>
+</head>
+<body>
+<div th:fragment="body(content, pageTitle, currentPage, scanStatus, refreshSeconds)">
+    <div class="topbar">
+        <div class="topbar-logo"><span>⬡</span> DrZIG File<span>Scanner</span></div>
+        <nav class="topbar-nav">
+            <a th:href="@{/}"            th:class="${currentPage=='home'}    ? 'nav-link active' : 'nav-link'">🗂 Explorer</a>
+            <a th:href="@{/shares}"      th:class="${currentPage=='shares'}  ? 'nav-link active' : 'nav-link'">🌐 Net Shares</a>
+            <a th:href="@{/manage-roots}"th:class="${currentPage=='roots'}   ? 'nav-link active' : 'nav-link'">💾 Drives</a>
+            <a th:href="@{/settings}"    th:class="${currentPage=='settings'}? 'nav-link active' : 'nav-link'">⚙ Settings</a>
+        </nav>
+        <div class="topbar-actions">
+            <form th:action="@{/email/send}" method="post" style="display:inline">
+                <button type="submit" class="btn btn-sm">📧 Send Report</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="status-bar" id="status-bar">
+        <div class="status-dot" id="status-dot"
+             th:class="${scanStatus!=null && scanStatus.state.name()=='RUNNING'}  ? 'status-dot running'  :
+                       (${scanStatus!=null && scanStatus.state.name()=='PAUSED'}  ? 'status-dot paused'   :
+                       (${scanStatus!=null && scanStatus.state.name()=='COMPLETED'}? 'status-dot completed':
+                       (${scanStatus!=null && scanStatus.state.name()=='ERROR'}    ? 'status-dot error'    : 'status-dot')))"></div>
+        <span id="status-state" th:text="${scanStatus!=null} ? ${scanStatus.state} : 'IDLE'"></span>
+        <span class="status-path" id="status-path"
+              th:text="${scanStatus!=null && !#strings.isEmpty(scanStatus.currentPath)} ? ${scanStatus.currentPath} : (${scanStatus!=null} ? ${scanStatus.message} : '')"></span>
+        <span class="status-counts" id="status-counts"
+              th:text="${scanStatus!=null && (scanStatus.state.name()=='RUNNING' || scanStatus.state.name()=='PAUSED')} ?
+              ('📁 ' + ${scanStatus.foldersScanned} + '  📄 ' + ${scanStatus.filesScanned}) : ''"></span>
+        <!-- Inline pause / resume buttons in status bar -->
+        <div class="status-controls">
+            <button id="btn-pause"  class="btn btn-sm btn-warning" onclick="doScanPause()"
+                    th:style="${scanStatus==null || scanStatus.state.name()!='RUNNING'} ? 'display:none' : ''">⏸ Pause</button>
+            <button id="btn-resume" class="btn btn-sm btn-primary" onclick="doScanResume()"
+                    th:style="${scanStatus==null || scanStatus.state.name()!='PAUSED'}  ? 'display:none' : ''">▶ Resume</button>
+        </div>
+    </div>
+
+    <div th:replace="${content}"></div>
+
+    <script th:inline="javascript">
+    const REFRESH_SEC = /*[[${refreshSeconds!=null?refreshSeconds:10}]]*/ 10;
+
+    async function updateStatus() {
+        try {
+            const s = await (await fetch('/scan/status')).json();
+            const dot = document.getElementById('status-dot');
+            if (dot) dot.className = 'status-dot' +
+                (s.state==='RUNNING' ? ' running' : s.state==='PAUSED' ? ' paused' :
+                 s.state==='COMPLETED' ? ' completed' : s.state==='ERROR' ? ' error' : '');
+            const el = id => document.getElementById(id);
+            if (el('status-state'))  el('status-state').textContent = s.state;
+            if (el('status-path'))   el('status-path').textContent  = s.currentPath || s.message || '';
+            if (el('status-counts')) el('status-counts').textContent =
+                (s.state==='RUNNING'||s.state==='PAUSED') ? `📁 ${s.foldersScanned}  📄 ${s.filesScanned}` : '';
+            const pauseBtn  = el('btn-pause');
+            const resumeBtn = el('btn-resume');
+            if (pauseBtn)  pauseBtn.style.display  = s.state==='RUNNING' ? '' : 'none';
+            if (resumeBtn) resumeBtn.style.display = s.state==='PAUSED'  ? '' : 'none';
+        } catch(e) {}
+    }
+    setInterval(updateStatus, REFRESH_SEC * 1000);
+
+    async function doScanPause() {
+        await fetch('/scan/pause', {method:'POST'});
+        await updateStatus();
+    }
+    async function doScanResume() {
+        await fetch('/scan/resume', {method:'POST'});
+        await updateStatus();
+    }
+
+    // DNP checkbox handler
+    document.addEventListener('change', async function(e) {
+        if (!e.target.classList.contains('dnp-checkbox')) return;
+        const id = e.target.dataset.id, value = e.target.checked;
+        const row = document.getElementById('row-' + id);
+        try {
+            const r = await fetch(`/api/folder/donotprocess?id=${id}&value=${value}`, {method:'POST'});
+            if (!r.ok) throw new Error('Server error');
+            if (row) row.classList.toggle('do-not-process', value);
+            const lbl = e.target.closest('.dnp-toggle');
+            if (lbl) lbl.classList.toggle('active', value);
+            if (value) setTimeout(() => location.reload(), 600);
+        } catch(err) { e.target.checked = !value; }
+    });
+    </script>
+</div>
+</body>
+</html>

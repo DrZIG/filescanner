@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{layout :: head('Settings')}"></head>
+<body>
+<div th:replace="~{layout :: body(content=~{::content-frag}, pageTitle='Settings', currentPage='settings', scanStatus=${scanStatus}, refreshSeconds=${refreshSeconds})}">
+<th:block th:fragment="content-frag">
+<div class="main">
+    <div style="font-family:var(--sans);font-size:22px;font-weight:800;margin-bottom:24px">⚙ Settings</div>
+    <div th:if="${param.saved}" class="alert alert-success">✅ Settings saved.</div>
+
+    <div class="tabs">
+        <a th:href="@{/settings}"            th:class="${param.tab==null}                          ?'tab active':'tab'">General</a>
+        <a th:href="@{/settings(tab='email')}"th:class="${param.tab!=null&&param.tab[0]=='email'}  ?'tab active':'tab'">Email / SMTP</a>
+        <a th:href="@{/settings(tab='icons')}"th:class="${param.tab!=null&&param.tab[0]=='icons'}  ?'tab active':'tab'">Icons</a>
+    </div>
+
+    <!-- GENERAL -->
+    <div th:if="${param.tab==null}">
+        <form th:action="@{/settings/general}" method="post">
+            <!-- carry through other tab fields -->
+            <input type="hidden" name="emailTo"       th:value="${emailTo}">
+            <input type="hidden" name="emailFrom"     th:value="${emailFrom}">
+            <input type="hidden" name="smtpHost"      th:value="${smtpHost}">
+            <input type="hidden" name="smtpPort"      th:value="${smtpPort}">
+            <input type="hidden" name="smtpUser"      th:value="${smtpUser}">
+            <input type="hidden" name="smtpTls"       th:value="${smtpTls}">
+            <div class="panel" style="padding:24px;margin-bottom:20px">
+                <div style="font-family:var(--sans);font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text2)">⏱ Scan Settings</div>
+                <div class="form-group" style="max-width:220px">
+                    <label class="form-label">Status Refresh (seconds)</label>
+                    <input type="number" name="refreshSeconds" class="form-control" th:value="${refreshSeconds}" min="1" max="300">
+                </div>
+                <div style="color:var(--text3);font-size:11px;margin-top:-8px">
+                    How often the status bar and scan page auto-refresh during a running scan.
+                </div>
+                <div style="font-family:var(--sans);font-size:14px;font-weight:700;margin:20px 0 12px;color:var(--text2)">🌐 Network Shares</div>
+                <div style="color:var(--text3);font-size:12px;margin-bottom:12px">
+                    Network shares are now managed on the <a th:href="@{/shares}">Net Shares</a> page,
+                    where you can probe accessibility and configure credentials per share.
+                </div>
+                <a th:href="@{/shares}" class="btn btn-primary">🌐 Go to Net Shares →</a>
+            </div>
+            <button type="submit" class="btn btn-primary">💾 Save Settings</button>
+        </form>
+    </div>
+
+    <!-- EMAIL -->
+    <div th:if="${param.tab!=null&&param.tab[0]=='email'}">
+        <form th:action="@{/settings/general}" method="post">
+            <input type="hidden" name="refreshSeconds" th:value="${refreshSeconds}">
+            <div class="panel" style="padding:24px;margin-bottom:20px">
+                <div style="font-family:var(--sans);font-size:14px;font-weight:700;margin-bottom:16px;color:var(--text2)">📧 Recipients</div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Send To (comma-separated)</label>
+                        <input type="text" name="emailTo" class="form-control" th:value="${emailTo}" placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Send From</label>
+                        <input type="text" name="emailFrom" class="form-control" th:value="${emailFrom}" placeholder="filescanner@example.com">
+                    </div>
+                </div>
+                <div style="font-family:var(--sans);font-size:14px;font-weight:700;margin:8px 0 16px;color:var(--text2)">📡 SMTP Server</div>
+                <div class="grid-3">
+                    <div class="form-group">
+                        <label class="form-label">SMTP Host</label>
+                        <input type="text" name="smtpHost" class="form-control" th:value="${smtpHost}" placeholder="smtp.gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Port</label>
+                        <input type="number" name="smtpPort" class="form-control" th:value="${smtpPort}" placeholder="587">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">STARTTLS</label>
+                        <select name="smtpTls" class="form-control">
+                            <option value="true"  th:selected="${smtpTls=='true'}">Yes (recommended)</option>
+                            <option value="false" th:selected="${smtpTls!='true'}">No</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" name="smtpUser" class="form-control" th:value="${smtpUser}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password (blank = keep current)</label>
+                        <input type="password" name="smtpPass" class="form-control" placeholder="••••••••">
+                    </div>
+                </div>
+                <div style="color:var(--text3);font-size:11px">
+                    Gmail: use an App Password — enable 2FA then visit
+                    <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:var(--accent)">myaccount.google.com/apppasswords</a>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">💾 Save Settings</button>
+        </form>
+    </div>
+
+    <!-- ICONS -->
+    <div th:if="${param.tab!=null&&param.tab[0]=='icons'}">
+        <div class="panel" style="margin-bottom:20px">
+            <div class="panel-header"><span class="panel-title">Icon Mappings</span></div>
+            <div style="padding:20px;border-bottom:1px solid var(--border)">
+                <div style="font-size:12px;font-weight:600;margin-bottom:12px;color:var(--text2)">Add New Mapping</div>
+                <form th:action="@{/settings/icons/save}" method="post" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+                    <div class="form-group" style="margin-bottom:0;flex:1;min-width:100px">
+                        <label class="form-label">Pattern</label>
+                        <input type="text" name="pattern" class="form-control" placeholder="mp4" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:1;min-width:140px">
+                        <label class="form-label">Type</label>
+                        <select name="patternType" class="form-control">
+                            <option value="extension">File extension</option>
+                            <option value="folder_name">Folder name</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:0 0 90px">
+                        <label class="form-label">Icon (emoji)</label>
+                        <input type="text" name="icon" class="form-control" placeholder="🎬" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;flex:1;min-width:120px">
+                        <label class="form-label">Label</label>
+                        <input type="text" name="label" class="form-control" placeholder="Video File">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="margin-bottom:0">➕ Add</button>
+                </form>
+            </div>
+            <div class="scroll-x">
+                <table class="file-table">
+                    <thead><tr><th>Icon</th><th>Pattern</th><th>Type</th><th>Label</th><th>Delete</th></tr></thead>
+                    <tbody>
+                        <tr th:each="icon : ${icons}">
+                            <td style="font-size:18px" th:text="${icon.icon}"></td>
+                            <td><code th:text="${icon.pattern}"></code></td>
+                            <td style="color:var(--text3);font-size:11px" th:text="${icon.patternType}"></td>
+                            <td th:text="${icon.label}"></td>
+                            <td>
+                                <form th:action="@{/settings/icons/delete}" method="post" style="display:inline">
+                                    <input type="hidden" name="id" th:value="${icon.id}">
+                                    <button type="submit" class="btn btn-sm btn-danger"
+                                            onclick="return confirm('Delete this icon mapping?')">✕</button>
+                                </form>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+</th:block>
+</div>
+</body>
+</html>

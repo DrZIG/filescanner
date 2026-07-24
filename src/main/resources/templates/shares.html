@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{layout :: head('Network Shares')}"></head>
+<body>
+<div th:replace="~{layout :: body(content=~{::content-frag}, pageTitle='Network Shares', currentPage='shares', scanStatus=${scanStatus}, refreshSeconds=${refreshSeconds})}">
+<th:block th:fragment="content-frag">
+<div class="main">
+    <div style="font-family:var(--sans);font-size:22px;font-weight:800;margin-bottom:8px">🌐 Network Shares</div>
+    <div style="color:var(--text3);font-size:12px;margin-bottom:24px">
+        Configure UNC network paths to include in scanning. Use the <strong>Probe</strong> button to test
+        accessibility and detect whether credentials are required.
+    </div>
+
+    <div th:if="${param.saved}"   class="alert alert-success">✅ Share saved.</div>
+    <div th:if="${param.deleted}" class="alert alert-success">✅ Share removed.</div>
+
+    <!-- ADD / EDIT FORM -->
+    <div class="panel" style="margin-bottom:20px">
+        <div class="panel-header"><span class="panel-title">➕ Add Network Share</span></div>
+        <div style="padding:20px">
+            <div class="grid-2" style="margin-bottom:14px">
+                <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label">UNC Path <span style="color:var(--danger)">*</span></label>
+                    <input type="text" id="new-path" class="form-control"
+                           placeholder="//drzig-nas  or  //192.168.1.10/Films">
+                </div>
+                <div class="form-group" style="margin-bottom:0">
+                    <label class="form-label">Label (optional)</label>
+                    <input type="text" id="new-label" class="form-control" placeholder="NAS Movies">
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:16px">
+                <button class="btn btn-primary" onclick="probeShare()">🔍 Probe Connection</button>
+                <span id="probe-status" style="align-self:center;font-size:12px;color:var(--text3)"></span>
+            </div>
+
+            <!-- Credential fields — shown after probe detects auth needed, or manually -->
+            <div id="cred-section" style="display:none">
+                <div class="alert alert-warning" style="margin-bottom:12px">
+                    🔐 This share requires credentials. Enter them below.
+                </div>
+                <div class="grid-3">
+                    <div class="form-group">
+                        <label class="form-label">Domain / Workgroup</label>
+                        <input type="text" id="new-domain" class="form-control" placeholder="WORKGROUP">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="new-username" class="form-control" placeholder="username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="new-password" class="form-control">
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-success" onclick="saveNewShare()">💾 Save Share</button>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
+                    <input type="checkbox" id="new-enabled" checked style="accent-color:var(--accent2)"> Enabled for scanning
+                </label>
+                <button class="btn btn-sm" onclick="toggleCredSection()" style="margin-left:auto">
+                    🔑 Toggle credentials manually
+                </button>
+            </div>
+            <!-- Hidden form for POST submission -->
+            <form id="save-share-form" th:action="@{/shares/save}" method="post" style="display:none">
+                <input type="hidden" name="path"         id="f-path">
+                <input type="hidden" name="label"        id="f-label">
+                <input type="hidden" name="domain"       id="f-domain">
+                <input type="hidden" name="username"     id="f-username">
+                <input type="hidden" name="password"     id="f-password">
+                <input type="hidden" name="requiresAuth" id="f-requiresAuth">
+                <input type="hidden" name="enabled"      id="f-enabled">
+            </form>
+        </div>
+    </div>
+
+    <!-- EXISTING SHARES TABLE -->
+    <div class="panel">
+        <div class="panel-header"><span class="panel-title">Configured Shares</span></div>
+        <div th:if="${#lists.isEmpty(shares)}" class="empty-state">
+            <div class="empty-state-icon">🌐</div>
+            <div class="empty-state-title">No network shares configured</div>
+            <div style="color:var(--text3);font-size:12px;margin-top:8px">Add a UNC path above to get started.</div>
+        </div>
+        <div class="scroll-x" th:if="${!#lists.isEmpty(shares)}">
+            <table class="file-table">
+                <thead>
+                    <tr>
+                        <th>Path</th>
+                        <th>Label</th>
+                        <th>Auth</th>
+                        <th>Credentials</th>
+                        <th>Status</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="share : ${shares}">
+                        <td><code th:text="${share.path}"></code></td>
+                        <td th:text="${share.label}"></td>
+                        <td>
+                            <span th:if="${share.requiresAuth}"  class="badge badge-warning">🔐 Yes</span>
+                            <span th:unless="${share.requiresAuth}" class="badge badge-success">🔓 No</span>
+                        </td>
+                        <td style="color:var(--text3);font-size:11px">
+                            <span th:if="${share.username != null && !#strings.isEmpty(share.username)}"
+                                  th:text="${(share.domain!=null && !#strings.isEmpty(share.domain)) ? share.domain+'\\'+share.username : share.username}"></span>
+                            <span th:unless="${share.username != null && !#strings.isEmpty(share.username)}" style="color:var(--text3)">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${share.lastStatus != null && !#strings.isEmpty(share.lastStatus)}"
+                                  style="font-size:11px;color:var(--text3)" th:text="${share.lastStatus}"></span>
+                            <span th:unless="${share.lastStatus != null &amp;&amp; !#strings.isEmpty(share.lastStatus)}"
+                                  style="color:var(--text3)">—</span>
+                        </td>
+                        <td>
+                            <span th:if="${share.enabled}"  class="badge badge-success">✓ Yes</span>
+                            <span th:unless="${share.enabled}" class="badge badge-danger">✗ No</span>
+                        </td>
+                        <td>
+                            <div style="display:flex;gap:6px">
+                                <button class="btn btn-sm"
+                                        th:onclick="'editShare(' + ${share.id} + ',\'' + ${share.path} + '\',\'' + (${share.label}?:'') + '\',\'' + (${share.domain}?:'') + '\',\'' + (${share.username}?:'') + '\',' + ${share.requiresAuth} + ',' + ${share.enabled} + ')'">
+                                    ✏ Edit
+                                </button>
+                                <form th:action="@{/shares/delete}" method="post" style="display:inline">
+                                    <input type="hidden" name="id" th:value="${share.id}">
+                                    <button type="submit" class="btn btn-sm btn-danger"
+                                            onclick="return confirm('Remove this share?')">✕</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-backdrop" id="edit-modal">
+    <div class="modal">
+        <div class="modal-title">✏ Edit Network Share</div>
+        <form th:action="@{/shares/save}" method="post">
+            <input type="hidden" name="id" id="edit-id">
+            <div class="form-group">
+                <label class="form-label">UNC Path</label>
+                <input type="text" name="path" id="edit-path" class="form-control" required>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">Label</label>
+                    <input type="text" name="label" id="edit-label" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Domain / Workgroup</label>
+                    <input type="text" name="domain" id="edit-domain" class="form-control">
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" id="edit-username" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password (blank = keep current)</label>
+                    <input type="password" name="password" id="edit-password" class="form-control">
+                </div>
+            </div>
+            <div style="display:flex;gap:16px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+                    <input type="checkbox" name="requiresAuth" id="edit-requiresAuth" value="true" style="accent-color:var(--accent3)"> Requires auth
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+                    <input type="checkbox" name="enabled" id="edit-enabled" value="true" style="accent-color:var(--accent2)"> Enabled
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">💾 Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let probeResult = null;
+
+async function probeShare() {
+    const path = document.getElementById('new-path').value.trim();
+    if (!path) { alert('Please enter a UNC path first.'); return; }
+    const statusEl = document.getElementById('probe-status');
+    statusEl.textContent = '⏳ Probing…';
+    statusEl.style.color = 'var(--text3)';
+    try {
+        const params = new URLSearchParams({
+            path,
+            domain: document.getElementById('new-domain')?.value || '',
+            username: document.getElementById('new-username')?.value || '',
+            password: document.getElementById('new-password')?.value || ''
+        });
+        const r = await fetch('/api/shares/probe', {method:'POST', body: params,
+            headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+        probeResult = await r.json();
+
+        if (probeResult.accessible) {
+            statusEl.textContent = '✅ ' + probeResult.message;
+            statusEl.style.color = 'var(--accent2)';
+            document.getElementById('cred-section').style.display = 'none';
+        } else if (probeResult.requiresAuth) {
+            statusEl.textContent = '🔐 Credentials required.';
+            statusEl.style.color = 'var(--accent3)';
+            document.getElementById('cred-section').style.display = '';
+        } else {
+            statusEl.textContent = '❌ ' + probeResult.message;
+            statusEl.style.color = 'var(--danger)';
+        }
+    } catch(e) {
+        statusEl.textContent = '❌ Probe failed: ' + e.message;
+        statusEl.style.color = 'var(--danger)';
+    }
+}
+
+function toggleCredSection() {
+    const s = document.getElementById('cred-section');
+    s.style.display = s.style.display === 'none' ? '' : 'none';
+}
+
+function saveNewShare() {
+    const path = document.getElementById('new-path').value.trim();
+    if (!path) { alert('Path is required.'); return; }
+    const requiresAuth = (probeResult && probeResult.requiresAuth) ||
+        document.getElementById('new-username').value.trim() !== '';
+    document.getElementById('f-path').value         = path;
+    document.getElementById('f-label').value        = document.getElementById('new-label').value.trim();
+    document.getElementById('f-domain').value       = document.getElementById('new-domain').value.trim();
+    document.getElementById('f-username').value     = document.getElementById('new-username').value.trim();
+    document.getElementById('f-password').value     = document.getElementById('new-password').value;
+    document.getElementById('f-requiresAuth').value = requiresAuth ? 'true' : 'false';
+    document.getElementById('f-enabled').value      = document.getElementById('new-enabled').checked ? 'true' : 'false';
+    document.getElementById('save-share-form').submit();
+}
+
+function editShare(id, path, label, domain, username, requiresAuth, enabled) {
+    document.getElementById('edit-id').value           = id;
+    document.getElementById('edit-path').value         = path;
+    document.getElementById('edit-label').value        = label;
+    document.getElementById('edit-domain').value       = domain;
+    document.getElementById('edit-username').value     = username;
+    document.getElementById('edit-requiresAuth').checked = requiresAuth;
+    document.getElementById('edit-enabled').checked    = enabled;
+    document.getElementById('edit-password').value     = '';
+    document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').classList.remove('open');
+}
+
+// Close modal on backdrop click
+document.getElementById('edit-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
+</script>
+</th:block>
+</div>
+</body>
+</html>
