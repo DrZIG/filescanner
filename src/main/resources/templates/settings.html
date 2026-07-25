@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="en">
 <head th:replace="~{layout :: head('Settings')}"></head>
 <body>
@@ -10,8 +10,8 @@
 
     <div class="tabs">
         <a th:href="@{/settings}"            th:class="${param.tab==null}                          ?'tab active':'tab'">General</a>
-        <a th:href="@{/settings(tab='email')}"th:class="${param.tab!=null&&param.tab[0]=='email'}  ?'tab active':'tab'">Email / SMTP</a>
-        <a th:href="@{/settings(tab='icons')}"th:class="${param.tab!=null&&param.tab[0]=='icons'}  ?'tab active':'tab'">Icons</a>
+        <a th:href="@{/settings(tab='email')}" th:class="${param.tab != null && param.tab[0] == 'email'}  ?'tab active':'tab'">Email / SMTP</a>
+        <a th:href="@{/settings(tab='icons')}" th:class="${param.tab != null && param.tab[0] == 'icons'}  ?'tab active':'tab'">Icons</a>
     </div>
 
     <!-- GENERAL -->
@@ -45,7 +45,7 @@
     </div>
 
     <!-- EMAIL -->
-    <div th:if="${param.tab!=null&&param.tab[0]=='email'}">
+    <div th:if="${param.tab != null && param.tab[0] == 'email'}">
         <form th:action="@{/settings/general}" method="post">
             <input type="hidden" name="refreshSeconds" th:value="${refreshSeconds}">
             <div class="panel" style="padding:24px;margin-bottom:20px">
@@ -98,7 +98,7 @@
     </div>
 
     <!-- ICONS -->
-    <div th:if="${param.tab!=null&&param.tab[0]=='icons'}">
+    <div th:if="${param.tab != null && param.tab[0] == 'icons'}">
         <div class="panel" style="margin-bottom:20px">
             <div class="panel-header"><span class="panel-title">Icon Mappings</span></div>
             <div style="padding:20px;border-bottom:1px solid var(--border)">
@@ -153,3 +153,4 @@
 </div>
 </body>
 </html>
+
