@@ -84,13 +84,21 @@ public class IconService {
                 .orElse(repo.findByPattern("_default_file").map(IconMapping::getIcon).orElse("📄"));
     }
 
-    public List<IconMapping> findAll() { return repo.findAll(); }
+    public List<IconMapping> findAll() {
+        return repo.findAll();
+    }
 
     @Transactional
-    public IconMapping save(IconMapping mapping) { return repo.save(mapping); }
+    public IconMapping save(IconMapping mapping) {
+        return repo.save(mapping);
+    }
 
     @Transactional
-    public void delete(Long id) { repo.deleteById(id); }
+    public void delete(Long id) {
+        repo.deleteById(id);
+    }
 
-    public IconMapping findById(Long id) { return repo.findById(id).orElse(null); }
+    public IconMapping findById(Long id) {
+        return repo.findById(id).orElse(null);
+    }
 }

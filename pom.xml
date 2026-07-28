@@ -7,7 +7,7 @@
     <groupId>com.drzig.filescanner</groupId>
     <artifactId>file-scanner</artifactId>
     <version>1.0.0</version>
-    <packaging>jar</packaging>
+    <packaging>war</packaging>
     <name>DrZIG File Scanner</name>
 
     <parent>
@@ -75,6 +75,7 @@
     </dependencies>
 
     <build>
+        <finalName>${project.artifactId}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
