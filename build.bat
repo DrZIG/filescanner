@@ -10,7 +10,7 @@ mvn clean package -DskipTests
 
 if %ERRORLEVEL% EQU 0 (
     echo.
-    echo  Build successful! JAR is at: target\file-scanner-1.0.0.jar
+    echo  Build successful! JAR is at: target\filescanner-1.0.0.jar
     echo  Run start.bat to launch the application.
 ) else (
     echo.

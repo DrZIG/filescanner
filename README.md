@@ -23,7 +23,7 @@ mvn clean package -DskipTests
 ### 2. Run (H2 embedded database — default)
 
 ```
-java -jar target/file-scanner-1.0.0.jar
+java -jar target/filescanner.jar
 ```
 
 ### 3. Open browser

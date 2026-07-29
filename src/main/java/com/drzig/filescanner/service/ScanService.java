@@ -104,7 +104,8 @@ public class ScanService {
             // Step 2: local drives
             for (File drive : getLocalDrives()) {
                 checkPause();
-                if (scanStatus.isStopRequested()) break;
+                if (scanStatus.isStopRequested())
+                    break;
                 scanStatus.setCurrentDrive(drive.getAbsolutePath());
                 scanDrive(drive);
             }
@@ -113,7 +114,8 @@ public class ScanService {
             if (!scanStatus.isStopRequested()) {
                 for (NetworkShare share : networkShareService.findEnabled()) {
                     checkPause();
-                    if (scanStatus.isStopRequested()) break;
+                    if (scanStatus.isStopRequested())
+                        break;
                     scanStatus.setCurrentDrive(share.getPath());
                     scanNetShare(share);
                 }
@@ -149,12 +151,15 @@ public class ScanService {
         List<FileEntry> all = repo.findAll();
         List<FileEntry> toRemove = new ArrayList<>();
         for (FileEntry entry : all) {
-            if (scanStatus.isStopRequested()) break;
+            if (scanStatus.isStopRequested())
+                break;
             boolean exists = new File(entry.getFullPath()).exists();
             if (!exists) {
                 entry.setExistsOnDisk(false);
-                if (entry.getParentId() != null) toRemove.add(entry);
-                else repo.save(entry);   // root: flag only, user decides
+                if (entry.getParentId() != null)
+                    toRemove.add(entry);
+                else
+                    repo.save(entry);   // root: flag only, user decides
             } else if (!entry.isExistsOnDisk()) {
                 entry.setExistsOnDisk(true);
                 repo.save(entry);
@@ -170,21 +175,25 @@ public class ScanService {
         List<File> drives = new ArrayList<>();
         for (Path root : FileSystems.getDefault().getRootDirectories()) {
             File f = root.toFile();
-            if (f.exists() && f.canRead()) drives.add(f);
+            if (f.exists() && f.canRead())
+                drives.add(f);
         }
         return drives;
     }
 
     private void scanDrive(File drive) {
         String path = drive.getAbsolutePath();
-        if (path.endsWith("\\") || path.endsWith("/")) path = path.substring(0, path.length() - 1);
+        if (path.endsWith("\\") || path.endsWith("/"))
+            path = path.substring(0, path.length() - 1);
         FileEntry root = ensureEntry(path, path, null, path, false, null, 0);
-        if (root != null) scanDirectory(drive, root.getId(), path, 1);
+        if (root != null)
+            scanDirectory(drive, root.getId(), path, 1);
     }
 
     private void scanNetShare(NetworkShare share) {
         String path = share.getPath();
-        while (path.endsWith("/") || path.endsWith("\\")) path = path.substring(0, path.length() - 1);
+        while (path.endsWith("/") || path.endsWith("\\"))
+            path = path.substring(0, path.length() - 1);
 
         // Attempt to connect (net use on Windows with credentials)
         if (share.isRequiresAuth() && share.getUsername() != null && !share.getUsername().isBlank()) {
@@ -203,7 +212,8 @@ public class ScanService {
             return;
         }
         FileEntry root = ensureEntry(path, path, null, path, false, null, 0);
-        if (root != null) scanDirectory(dir, root.getId(), path, 1);
+        if (root != null)
+            scanDirectory(dir, root.getId(), path, 1);
     }
 
     private void scanDirectory(File dir, Long parentId, String rootPath, int depth) {
@@ -220,21 +230,25 @@ public class ScanService {
         if (children == null) return;
 
         Arrays.sort(children, (a, b) -> {
-            if (a.isDirectory() != b.isDirectory()) return a.isDirectory() ? -1 : 1;
+            if (a.isDirectory() != b.isDirectory())
+                return a.isDirectory() ? -1 : 1;
             return a.getName().compareToIgnoreCase(b.getName());
         });
 
         for (File child : children) {
             checkPause();
-            if (scanStatus.isStopRequested()) return;
+            if (scanStatus.isStopRequested())
+                return;
 
             String childPath = child.getAbsolutePath();
             scanStatus.setCurrentPath(childPath);
 
             if (child.isDirectory()) {
-                if (fileService.isAnyAncestorDoNotProcess(childPath)) continue;
+                if (fileService.isAnyAncestorDoNotProcess(childPath))
+                    continue;
                 FileEntry folderEntry = ensureEntry(childPath, child.getName(), parentId, rootPath, false, null, depth);
-                if (folderEntry == null) continue;
+                if (folderEntry == null)
+                    continue;
                 if (folderEntry.isDoNotProcess()) {
                     fileService.removeChildrenOfDoNotProcess(folderEntry.getId(), childPath);
                     scanStatus.incrementFolders();
@@ -258,7 +272,8 @@ public class ScanService {
             if (existing.isPresent()) {
                 FileEntry e = existing.get();
                 e.setExistsOnDisk(true);
-                if (isFile && sizeBytes != null) e.setSizeBytes(sizeBytes);
+                if (isFile && sizeBytes != null)
+                    e.setSizeBytes(sizeBytes);
                 return repo.save(e);
             }
             return repo.save(new FileEntry(fullPath, name, parentId, rootPath, isFile, sizeBytes, depth));

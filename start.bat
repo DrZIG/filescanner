@@ -11,6 +11,6 @@ echo.
 echo  Press Ctrl+C to stop.
 echo.
 
-java -jar file-scanner-1.0.0.jar
+java -jar file-scanner.jar
 
 pause
