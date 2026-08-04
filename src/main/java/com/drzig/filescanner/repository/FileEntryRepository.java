@@ -40,4 +40,7 @@ public interface FileEntryRepository extends JpaRepository<FileEntry, Long> {
 
     @Query("SELECT DISTINCT f.rootPath FROM FileEntry f ORDER BY f.rootPath")
     List<String> findAllRootPaths();
+
+    @Query("SELECT f FROM FileEntry f WHERE f.rootPath = :rootPath")
+    List<FileEntry> findAllByRootPath(@Param("rootPath") String rootPath);
 }

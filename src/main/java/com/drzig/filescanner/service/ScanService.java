@@ -8,7 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.File;
 import java.nio.file.FileSystems;
@@ -20,23 +22,31 @@ import java.util.*;
 public class ScanService {
 
     private static final Logger log = LoggerFactory.getLogger(ScanService.class);
+    private static final int BATCH_SIZE = 500;
 
     private final FileEntryRepository repo;
     private final FileService fileService;
     private final NetworkShareService networkShareService;
     private final EmailService emailService;
+    private final TransactionTemplate txTemplate;
 
     private final ScanStatus scanStatus = new ScanStatus();
 
     // Pause lock object
     private final Object pauseLock = new Object();
 
+    // Per-root working state (only valid while scanning one root)
+    private Map<String, FileEntry> existingPaths = new HashMap<>();
+    private final List<FileEntry> pendingBatch = new ArrayList<>();
+
     public ScanService(FileEntryRepository repo, FileService fileService,
-                       NetworkShareService networkShareService, EmailService emailService) {
+                       NetworkShareService networkShareService, EmailService emailService,
+                       PlatformTransactionManager txManager) {
         this.repo = repo;
         this.fileService = fileService;
         this.networkShareService = networkShareService;
         this.emailService = emailService;
+        this.txTemplate = new TransactionTemplate(txManager);
     }
 
     public ScanStatus getStatus() {
@@ -70,8 +80,11 @@ public class ScanService {
         }
     }
 
-    /** Blocks the scan thread while paused, until resumed or stopped. */
+    /** Blocks the scan thread while paused. Flushes pending writes first so nothing sits unsaved while paused. */
     private void checkPause() {
+        if (scanStatus.isPauseRequested() && !scanStatus.isStopRequested()) {
+            flushBatch();
+        }
         while (scanStatus.isPauseRequested() && !scanStatus.isStopRequested()) {
             synchronized (pauseLock) {
                 try {
@@ -146,7 +159,7 @@ public class ScanService {
     }
 
     @Transactional
-    private void performExistenceCheck() {
+    protected void performExistenceCheck() {
         scanStatus.setMessage("Verifying existing database records against disk…");
         List<FileEntry> all = repo.findAll();
         List<FileEntry> toRemove = new ArrayList<>();
@@ -181,21 +194,33 @@ public class ScanService {
         return drives;
     }
 
+    private void loadExistingForRoot(String rootPath) {
+        existingPaths = new HashMap<>();
+        for (FileEntry e : repo.findAllByRootPath(rootPath)) {
+            existingPaths.put(e.getFullPath(), e);
+        }
+    }
+
     private void scanDrive(File drive) {
         String path = drive.getAbsolutePath();
-        if (path.endsWith("\\") || path.endsWith("/"))
+        if (path.endsWith("\\") || path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
+        }
+        loadExistingForRoot(path);
         FileEntry root = ensureEntry(path, path, null, path, false, null, 0);
-        if (root != null)
+        if (root != null) {
             scanDirectory(drive, root.getId(), path, 1);
+        }
+        flushBatch();
+        existingPaths = new HashMap<>(); // release memory before next root
     }
 
     private void scanNetShare(NetworkShare share) {
         String path = share.getPath();
-        while (path.endsWith("/") || path.endsWith("\\"))
+        while (path.endsWith("/") || path.endsWith("\\")) {
             path = path.substring(0, path.length() - 1);
+        }
 
-        // Attempt to connect (net use on Windows with credentials)
         if (share.isRequiresAuth() && share.getUsername() != null && !share.getUsername().isBlank()) {
             boolean connected = networkShareService.connectShare(share);
             if (!connected) {
@@ -211,9 +236,13 @@ public class ScanService {
             scanStatus.setMessage("⚠ Not accessible: " + path);
             return;
         }
+        loadExistingForRoot(path);
         FileEntry root = ensureEntry(path, path, null, path, false, null, 0);
-        if (root != null)
+        if (root != null) {
             scanDirectory(dir, root.getId(), path, 1);
+        }
+        flushBatch();
+        existingPaths = new HashMap<>();
     }
 
     private void scanDirectory(File dir, Long parentId, String rootPath, int depth) {
@@ -264,22 +293,54 @@ public class ScanService {
         }
     }
 
-    @Transactional
     private FileEntry ensureEntry(String fullPath, String name, Long parentId,
-                                   String rootPath, boolean isFile, Long sizeBytes, int depth) {
-        try {
-            Optional<FileEntry> existing = repo.findByFullPath(fullPath);
-            if (existing.isPresent()) {
-                FileEntry e = existing.get();
-                e.setExistsOnDisk(true);
-                if (isFile && sizeBytes != null)
-                    e.setSizeBytes(sizeBytes);
-                return repo.save(e);
+                                  String rootPath, boolean isFile, Long sizeBytes, int depth) {
+        FileEntry existing = existingPaths.get(fullPath);
+        if (existing != null) {
+            boolean dirty = false;
+            if (!existing.isExistsOnDisk()) {
+                existing.setExistsOnDisk(true);
+                dirty = true;
             }
-            return repo.save(new FileEntry(fullPath, name, parentId, rootPath, isFile, sizeBytes, depth));
-        } catch (Exception e) {
-            log.error("Failed to save entry: {}", fullPath, e);
-            return null;
+            if (isFile && sizeBytes != null && !sizeBytes.equals(existing.getSizeBytes())) {
+                existing.setSizeBytes(sizeBytes);
+                dirty = true;
+            }
+            if (dirty) {
+                queueSave(existing);
+            }
+            return existing;
         }
+
+        FileEntry created = new FileEntry(fullPath, name, parentId, rootPath, isFile, sizeBytes, depth);
+        if (isFile) {
+            // Files are leaves — nothing downstream needs their ID immediately, safe to batch.
+            queueSave(created);
+        } else {
+            // Folders need a real ID right away, because scanDirectory() recurses using folderEntry.getId().
+            created = saveNow(created);
+        }
+        existingPaths.put(fullPath, created);
+        return created;
+    }
+
+    private void queueSave(FileEntry e) {
+        pendingBatch.add(e);
+        if (pendingBatch.size() >= BATCH_SIZE) {
+            flushBatch();
+        }
+    }
+
+    private FileEntry saveNow(FileEntry e) {
+        return txTemplate.execute(status -> repo.save(e));
+    }
+
+    private void flushBatch() {
+        if (pendingBatch.isEmpty()) {
+            return;
+        }
+        List<FileEntry> toSave = new ArrayList<>(pendingBatch);
+        pendingBatch.clear();
+        txTemplate.execute(status -> repo.saveAll(toSave));
     }
 }
