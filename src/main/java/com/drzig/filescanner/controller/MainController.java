@@ -6,6 +6,7 @@ import com.drzig.filescanner.model.FileEntry;
 import com.drzig.filescanner.model.IconMapping;
 import com.drzig.filescanner.model.NetworkShare;
 import com.drzig.filescanner.service.*;
+import com.drzig.filescanner.util.DeviceUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -28,16 +29,19 @@ public class MainController {
     private final EmailService emailService;
     private final IconService iconService;
     private final NetworkShareService networkShareService;
+    private final SyncGuardService syncGuardService;
 
     public MainController(FileService fileService, ScanService scanService,
                           SettingsService settingsService, EmailService emailService,
-                          IconService iconService, NetworkShareService networkShareService) {
+                          IconService iconService, NetworkShareService networkShareService,
+                          SyncGuardService syncGuardService) {
         this.fileService = fileService;
         this.scanService = scanService;
         this.settingsService = settingsService;
         this.emailService = emailService;
         this.iconService = iconService;
         this.networkShareService = networkShareService;
+        this.syncGuardService = syncGuardService;
     }
 
     // ===== HOME =====
@@ -48,6 +52,7 @@ public class MainController {
         model.addAttribute("scanStatus", scanService.getStatus());
         model.addAttribute("refreshSeconds", settingsService.getStatusRefreshSeconds());
         model.addAttribute("currentPage", "home");
+        model.addAttribute("syncWarning", syncGuardService.getStartupWarning());
         return "index";
     }
 
@@ -111,7 +116,9 @@ public class MainController {
         Optional<FileEntry> entry = fileService.findEntityById(id);
         if (entry.isEmpty()) return ResponseEntity.notFound().build();
         fileService.toggleDoNotProcess(id, value);
-        if (value) fileService.removeChildrenOfDoNotProcess(id, entry.get().getFullPath());
+        if (value) {
+            fileService.removeChildrenOfDoNotProcess(id, entry.get().getFullPath(), entry.get().getDeviceName());
+        }
         return ResponseEntity.ok(Map.of("success", true));
     }
 
@@ -148,7 +155,8 @@ public class MainController {
         settingsService.set(SettingsService.KEY_SMTP_HOST,  smtpHost.trim());
         settingsService.set(SettingsService.KEY_SMTP_PORT,  smtpPort.trim());
         settingsService.set(SettingsService.KEY_SMTP_USER,  smtpUser.trim());
-        if (!smtpPass.isBlank()) settingsService.set(SettingsService.KEY_SMTP_PASS, smtpPass);
+        if (!smtpPass.isBlank())
+            settingsService.set(SettingsService.KEY_SMTP_PASS, smtpPass);
         settingsService.set(SettingsService.KEY_SMTP_TLS,       smtpTls);
         settingsService.set(SettingsService.KEY_STATUS_REFRESH, refreshSeconds.trim());
         return "redirect:/settings?saved=true";
@@ -203,10 +211,13 @@ public class MainController {
         share.setLabel(label.trim());
         share.setDomain(domain.trim());
         share.setUsername(username.trim());
-        if (!password.isBlank()) share.setPassword(password);
+        if (!password.isBlank())
+            share.setPassword(password);
+
         share.setRequiresAuth(requiresAuth);
         share.setEnabled(enabled);
         networkShareService.save(share);
+
         return "redirect:/shares?saved=true";
     }
 
@@ -233,11 +244,18 @@ public class MainController {
     @GetMapping("/manage-roots")
     public String manageRoots(Model model) {
         List<Map<String, Object>> roots = new ArrayList<>();
-        for (String rootPath : fileService.getAllRootPaths()) {
+        String thisDevice = DeviceUtil.currentDeviceName();
+        for (Map<String, String> ident : fileService.getAllRootIdentifiers()) {
+            String device = ident.get("device");
+            String rootPath = ident.get("path");
+            boolean isThisDevice = device.equals(thisDevice);
+
             Map<String, Object> info = new HashMap<>();
+            info.put("device", device);
             info.put("path", rootPath);
-            info.put("count", fileService.countByRootPath(rootPath));
-            info.put("accessible", new java.io.File(rootPath).exists());
+            info.put("count", fileService.countByDeviceAndRootPath(device, rootPath));
+            info.put("thisDevice", isThisDevice);
+            info.put("accessible", isThisDevice && new java.io.File(rootPath).exists());
             roots.add(info);
         }
         model.addAttribute("roots", roots);
@@ -249,11 +267,13 @@ public class MainController {
 
     @PostMapping("/roots/delete")
     public String deleteRoot(@RequestParam String rootPath,
-                              @RequestParam(defaultValue = "false") boolean confirmed) {
+                             @RequestParam String deviceName,
+                             @RequestParam(defaultValue = "false") boolean confirmed) {
         if (!confirmed) {
-            return "redirect:/manage-roots?confirm=" + URLEncoder.encode(rootPath, StandardCharsets.UTF_8);
+            return "redirect:/manage-roots?confirm=" + URLEncoder.encode(rootPath, StandardCharsets.UTF_8)
+                    + "&confirmDevice=" + URLEncoder.encode(deviceName, StandardCharsets.UTF_8);
         }
-        fileService.deleteByRootPath(rootPath);
+        fileService.deleteByDeviceAndRootPath(deviceName, rootPath);
         return "redirect:/manage-roots?deleted=true";
     }
 

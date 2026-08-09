@@ -5,6 +5,9 @@
 <div th:replace="~{layout :: body(content=~{::content-frag}, pageTitle='Explorer', currentPage='home', scanStatus=${scanStatus}, refreshSeconds=${refreshSeconds})}">
 <th:block th:fragment="content-frag">
 <div class="main">
+    <div th:if="${syncWarning != null}" class="alert alert-warning" style="font-size:12px;line-height:1.5">
+        ⚠️ <strong>Device changed since last use:</strong> <span th:text="${syncWarning}"></span>
+    </div>
     <div th:if="${param.emailSent}"  class="alert alert-success">✅ Report email sent.</div>
     <div th:if="${param.emailError}" class="alert alert-danger">❌ <span th:text="${param.emailError[0]}"></span></div>
 

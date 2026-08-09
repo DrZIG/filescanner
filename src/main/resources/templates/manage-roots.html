@@ -14,10 +14,12 @@
 
     <div th:if="${param.confirm!=null}" class="alert alert-warning">
         ⚠️ <strong>Confirm deletion:</strong> Remove ALL database records for
-        <code th:text="${param.confirm[0]}"></code>?
+        <code th:text="${param.confirm[0]}"></code> on device
+        <code th:text="${param.confirmDevice[0]}"></code>?
         <div style="margin-top:10px;display:flex;gap:8px">
             <form th:action="@{/roots/delete}" method="post" style="display:inline">
-                <input type="hidden" name="rootPath"  th:value="${param.confirm[0]}">
+                <input type="hidden" name="rootPath"   th:value="${param.confirm[0]}">
+                <input type="hidden" name="deviceName" th:value="${param.confirmDevice[0]}">
                 <input type="hidden" name="confirmed" value="true">
                 <button type="submit" class="btn btn-danger">Yes, Delete All Records</button>
             </form>
@@ -34,22 +36,27 @@
         </div>
         <div class="scroll-x" th:if="${!#lists.isEmpty(roots)}">
             <table class="file-table">
-                <thead><tr><th>Root Path</th><th>DB Records</th><th>Currently Accessible</th><th>Action</th></tr></thead>
+                <thead><tr><th>Device</th><th>Root Path</th><th>DB Records</th><th>Currently Accessible</th><th>Action</th></tr></thead>
                 <tbody>
-                    <tr th:each="root : ${roots}">
-                        <td><span th:text="${root.path}" style="font-family:var(--mono)"></span></td>
-                        <td th:text="${root.count}"></td>
-                        <td>
+                <tr th:each="root : ${roots}">
+                    <td th:text="${root.device}" style="font-family:var(--mono);font-size:11px"></td>
+                    <td><span th:text="${root.path}" style="font-family:var(--mono)"></span></td>
+                    <td th:text="${root.count}"></td>
+                    <td>
+                        <span th:if="${root.thisDevice}">
                             <span th:if="${root.accessible}"   style="color:var(--accent2)">✓ Accessible</span>
                             <span th:unless="${root.accessible}" style="color:var(--danger)">✗ Not accessible</span>
-                        </td>
-                        <td>
-                            <form th:action="@{/roots/delete}" method="post" style="display:inline">
-                                <input type="hidden" name="rootPath" th:value="${root.path}">
-                                <button type="submit" class="btn btn-sm btn-danger">🗑 Remove</button>
-                            </form>
-                        </td>
-                    </tr>
+                        </span>
+                        <span th:unless="${root.thisDevice}" style="color:var(--text3)">— other device —</span>
+                    </td>
+                    <td>
+                        <form th:action="@{/roots/delete}" method="post" style="display:inline">
+                            <input type="hidden" name="rootPath"   th:value="${root.path}">
+                            <input type="hidden" name="deviceName" th:value="${root.device}">
+                            <button type="submit" class="btn btn-sm btn-danger">🗑 Remove</button>
+                        </form>
+                    </td>
+                </tr>
                 </tbody>
             </table>
         </div>

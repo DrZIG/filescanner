@@ -18,29 +18,31 @@ public interface FileEntryRepository extends JpaRepository<FileEntry, Long> {
 
     List<FileEntry> findByParentIdIsNullOrderByNameAsc();
 
-    Optional<FileEntry> findByFullPath(String fullPath);
+    Optional<FileEntry> findByDeviceNameAndFullPath(String deviceName, String fullPath);
 
-    @Query("SELECT f FROM FileEntry f WHERE f.rootPath = :rootPath AND f.parentId IS NULL")
-    Optional<FileEntry> findRootEntry(@Param("rootPath") String rootPath);
+    List<FileEntry> findByDeviceName(String deviceName);
+
+    List<FileEntry> findByDeviceNameAndRootPath(String deviceName, String rootPath);
+
+    @Query("SELECT f FROM FileEntry f WHERE f.deviceName = :device AND f.rootPath = :rootPath AND f.parentId IS NULL")
+    Optional<FileEntry> findRootEntry(@Param("device") String device, @Param("rootPath") String rootPath);
 
     @Modifying
     @Transactional
-    @Query("DELETE FROM FileEntry f WHERE (f.fullPath LIKE :prefix1 OR f.fullPath LIKE :prefix2) AND f.id != :keepId")
-    void deleteChildrenByPathPrefixes(@Param("prefix1") String prefix1,
+    @Query("DELETE FROM FileEntry f WHERE f.deviceName = :device AND (f.fullPath LIKE :prefix1 OR f.fullPath LIKE :prefix2) AND f.id != :keepId")
+    void deleteChildrenByPathPrefixes(@Param("device") String device,
+                                      @Param("prefix1") String prefix1,
                                       @Param("prefix2") String prefix2,
                                       @Param("keepId") Long keepId);
 
     @Modifying
     @Transactional
-    @Query("DELETE FROM FileEntry f WHERE f.rootPath = :rootPath")
-    void deleteByRootPath(@Param("rootPath") String rootPath);
+    @Query("DELETE FROM FileEntry f WHERE f.deviceName = :device AND f.rootPath = :rootPath")
+    void deleteByDeviceNameAndRootPath(@Param("device") String device, @Param("rootPath") String rootPath);
 
-    @Query("SELECT COUNT(f) FROM FileEntry f WHERE f.rootPath = :rootPath")
-    long countByRootPath(@Param("rootPath") String rootPath);
+    @Query("SELECT COUNT(f) FROM FileEntry f WHERE f.deviceName = :device AND f.rootPath = :rootPath")
+    long countByDeviceNameAndRootPath(@Param("device") String device, @Param("rootPath") String rootPath);
 
-    @Query("SELECT DISTINCT f.rootPath FROM FileEntry f ORDER BY f.rootPath")
-    List<String> findAllRootPaths();
-
-    @Query("SELECT f FROM FileEntry f WHERE f.rootPath = :rootPath")
-    List<FileEntry> findAllByRootPath(@Param("rootPath") String rootPath);
+    @Query("SELECT DISTINCT f.deviceName, f.rootPath FROM FileEntry f ORDER BY f.deviceName, f.rootPath")
+    List<Object[]> findAllRootPathsWithDevice();
 }

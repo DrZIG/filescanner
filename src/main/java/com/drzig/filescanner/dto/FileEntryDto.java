@@ -14,6 +14,7 @@ public class FileEntryDto {
     private boolean existsOnDisk;
     private String icon;
     private boolean hasChildren;
+    private String deviceName;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -41,4 +42,6 @@ public class FileEntryDto {
     public void setIcon(String icon) { this.icon = icon; }
     public boolean isHasChildren() { return hasChildren; }
     public void setHasChildren(boolean hasChildren) { this.hasChildren = hasChildren; }
+    public String getDeviceName() { return deviceName; }
+    public void setDeviceName(String deviceName) { this.deviceName = deviceName; }
 }

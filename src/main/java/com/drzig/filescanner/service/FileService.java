@@ -20,14 +20,24 @@ public class FileService {
     }
 
     public static String humanReadableSize(Long bytes) {
-        if (bytes == null) return "";
-        if (bytes < 1024) return bytes + " B";
+        if (bytes == null) {
+            return "";
+        }
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
         double kb = bytes / 1024.0;
-        if (kb < 1024) return String.format("%.1f KB", kb);
+        if (kb < 1024) {
+            return String.format("%.1f KB", kb);
+        }
         double mb = kb / 1024.0;
-        if (mb < 1024) return String.format("%.1f MB", mb);
+        if (mb < 1024) {
+            return String.format("%.1f MB", mb);
+        }
         double gb = mb / 1024.0;
-        if (gb < 1024) return String.format("%.1f GB", gb);
+        if (gb < 1024) {
+            return String.format("%.1f GB", gb);
+        }
         return String.format("%.1f TB", gb / 1024.0);
     }
 
@@ -58,33 +68,46 @@ public class FileService {
     }
 
     @Transactional
-    public void removeChildrenOfDoNotProcess(Long folderId, String folderPath) {
-        repo.deleteChildrenByPathPrefixes(folderPath + "\\%", folderPath + "/%", folderId);
+    public void removeChildrenOfDoNotProcess(Long folderId, String folderPath, String deviceName) {
+        repo.deleteChildrenByPathPrefixes(deviceName, folderPath + "\\%", folderPath + "/%", folderId);
     }
 
     @Transactional
-    public void deleteByRootPath(String rootPath) {
-        repo.deleteByRootPath(rootPath);
+    public void deleteByDeviceAndRootPath(String deviceName, String rootPath) {
+        repo.deleteByDeviceNameAndRootPath(deviceName, rootPath);
     }
 
-    public long countByRootPath(String rootPath) {
-        return repo.countByRootPath(rootPath);
+    public long countByDeviceAndRootPath(String deviceName, String rootPath) {
+        return repo.countByDeviceNameAndRootPath(deviceName, rootPath);
     }
 
-    public List<String> getAllRootPaths() {
-        return repo.findAllRootPaths();
+    public List<Map<String, String>> getAllRootIdentifiers() {
+        List<Map<String, String>> result = new ArrayList<>();
+        for (Object[] row : repo.findAllRootPathsWithDevice()) {
+            Map<String, String> m = new HashMap<>();
+            m.put("device", (String) row[0]);
+            m.put("path", (String) row[1]);
+            result.add(m);
+        }
+        return result;
     }
 
-    public boolean isAnyAncestorDoNotProcess(String fullPath) {
+    public boolean isAnyAncestorDoNotProcess(String fullPath, String deviceName) {
         String path = fullPath;
         while (true) {
             int lastSep = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
-            if (lastSep <= 1) break;
+            if (lastSep <= 1) {
+                break;
+            }
             String parent = path.substring(0, lastSep);
-            if (parent.length() <= 2 && parent.contains(":")) break;
+            if (parent.length() <= 2 && parent.contains(":")) {
+                break;
+            }
             path = parent;
-            Optional<FileEntry> entry = repo.findByFullPath(path);
-            if (entry.isPresent() && entry.get().isDoNotProcess()) return true;
+            Optional<FileEntry> entry = repo.findByDeviceNameAndFullPath(deviceName, path);
+            if (entry.isPresent() && entry.get().isDoNotProcess()) {
+                return true;
+            }
         }
         return false;
     }
@@ -96,6 +119,7 @@ public class FileService {
         dto.setName(e.getName());
         dto.setParentId(e.getParentId());
         dto.setRootPath(e.getRootPath());
+        dto.setDeviceName(e.getDeviceName());
         dto.setFile(e.isFile());
         dto.setSizeBytes(e.getSizeBytes());
         dto.setSizeHuman(humanReadableSize(e.getSizeBytes()));
@@ -109,8 +133,8 @@ public class FileService {
         return dto;
     }
 
-    public Optional<FileEntry> findByFullPath(String path) {
-        return repo.findByFullPath(path);
+    public Optional<FileEntry> findByDeviceAndFullPath(String deviceName, String path) {
+        return repo.findByDeviceNameAndFullPath(deviceName, path);
     }
 
     @Transactional

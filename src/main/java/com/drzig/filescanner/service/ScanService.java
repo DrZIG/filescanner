@@ -4,6 +4,7 @@ import com.drzig.filescanner.dto.ScanStatus;
 import com.drzig.filescanner.model.FileEntry;
 import com.drzig.filescanner.model.NetworkShare;
 import com.drzig.filescanner.repository.FileEntryRepository;
+import com.drzig.filescanner.util.DeviceUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -31,11 +32,10 @@ public class ScanService {
     private final TransactionTemplate txTemplate;
 
     private final ScanStatus scanStatus = new ScanStatus();
+    private final String deviceName = DeviceUtil.currentDeviceName();
 
-    // Pause lock object
     private final Object pauseLock = new Object();
 
-    // Per-root working state (only valid while scanning one root)
     private Map<String, FileEntry> existingPaths = new HashMap<>();
     private final List<FileEntry> pendingBatch = new ArrayList<>();
 
@@ -161,18 +161,20 @@ public class ScanService {
     @Transactional
     protected void performExistenceCheck() {
         scanStatus.setMessage("Verifying existing database records against disk…");
-        List<FileEntry> all = repo.findAll();
+        List<FileEntry> mine = repo.findByDeviceName(deviceName);
         List<FileEntry> toRemove = new ArrayList<>();
-        for (FileEntry entry : all) {
-            if (scanStatus.isStopRequested())
+        for (FileEntry entry : mine) {
+            if (scanStatus.isStopRequested()) {
                 break;
+            }
             boolean exists = new File(entry.getFullPath()).exists();
             if (!exists) {
                 entry.setExistsOnDisk(false);
-                if (entry.getParentId() != null)
+                if (entry.getParentId() != null) {
                     toRemove.add(entry);
-                else
-                    repo.save(entry);   // root: flag only, user decides
+                } else {
+                    repo.save(entry);
+                }
             } else if (!entry.isExistsOnDisk()) {
                 entry.setExistsOnDisk(true);
                 repo.save(entry);
@@ -180,7 +182,7 @@ public class ScanService {
         }
         if (!toRemove.isEmpty()) {
             repo.deleteAll(toRemove);
-            log.info("Removed {} stale entries", toRemove.size());
+            log.info("Removed {} stale entries for device {}", toRemove.size(), deviceName);
         }
     }
 
@@ -196,7 +198,7 @@ public class ScanService {
 
     private void loadExistingForRoot(String rootPath) {
         existingPaths = new HashMap<>();
-        for (FileEntry e : repo.findAllByRootPath(rootPath)) {
+        for (FileEntry e : repo.findByDeviceNameAndRootPath(deviceName, rootPath)) {
             existingPaths.put(e.getFullPath(), e);
         }
     }
@@ -247,7 +249,9 @@ public class ScanService {
 
     private void scanDirectory(File dir, Long parentId, String rootPath, int depth) {
         checkPause();
-        if (scanStatus.isStopRequested()) return;
+        if (scanStatus.isStopRequested()) {
+            return;
+        }
 
         File[] children;
         try {
@@ -256,30 +260,36 @@ public class ScanService {
             log.warn("Access denied: {}", dir.getAbsolutePath());
             return;
         }
-        if (children == null) return;
+        if (children == null) {
+            return;
+        }
 
         Arrays.sort(children, (a, b) -> {
-            if (a.isDirectory() != b.isDirectory())
+            if (a.isDirectory() != b.isDirectory()) {
                 return a.isDirectory() ? -1 : 1;
+            }
             return a.getName().compareToIgnoreCase(b.getName());
         });
 
         for (File child : children) {
             checkPause();
-            if (scanStatus.isStopRequested())
+            if (scanStatus.isStopRequested()) {
                 return;
+            }
 
             String childPath = child.getAbsolutePath();
             scanStatus.setCurrentPath(childPath);
 
             if (child.isDirectory()) {
-                if (fileService.isAnyAncestorDoNotProcess(childPath))
+                if (fileService.isAnyAncestorDoNotProcess(childPath, deviceName)) {
                     continue;
+                }
                 FileEntry folderEntry = ensureEntry(childPath, child.getName(), parentId, rootPath, false, null, depth);
-                if (folderEntry == null)
+                if (folderEntry == null) {
                     continue;
+                }
                 if (folderEntry.isDoNotProcess()) {
-                    fileService.removeChildrenOfDoNotProcess(folderEntry.getId(), childPath);
+                    fileService.removeChildrenOfDoNotProcess(folderEntry.getId(), childPath, deviceName);
                     scanStatus.incrementFolders();
                     continue;
                 }
@@ -312,12 +322,10 @@ public class ScanService {
             return existing;
         }
 
-        FileEntry created = new FileEntry(fullPath, name, parentId, rootPath, isFile, sizeBytes, depth);
+        FileEntry created = new FileEntry(fullPath, name, parentId, rootPath, deviceName, isFile, sizeBytes, depth);
         if (isFile) {
-            // Files are leaves — nothing downstream needs their ID immediately, safe to batch.
             queueSave(created);
         } else {
-            // Folders need a real ID right away, because scanDirectory() recurses using folderEntry.getId().
             created = saveNow(created);
         }
         existingPaths.put(fullPath, created);

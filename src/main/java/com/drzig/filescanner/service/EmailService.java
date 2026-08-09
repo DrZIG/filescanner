@@ -42,14 +42,13 @@ public class EmailService {
             File zip = createZip(text);
 
             MimeMessage msg = sender.createMimeMessage();
-            MimeMessageHelper h = new MimeMessageHelper(msg, true, "UTF-8");
+            MimeMessageHelper mimeMessageHelper = new MimeMessageHelper(msg, true, "UTF-8");
             String from = settingsService.get(SettingsService.KEY_EMAIL_FROM, "filescanner@localhost");
-            h.setFrom(from.isBlank() ? "filescanner@localhost" : from);
-            h.setTo(to.split("[,;\\s]+"));
-            h.setSubject("File Scanner Report — " +
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-            h.setText("File scanner hierarchical report attached.", false);
-            h.addAttachment("filescanner-report.zip", zip);
+            mimeMessageHelper.setFrom(from.isBlank() ? "filescanner@localhost" : from);
+            mimeMessageHelper.setTo(to.split("[,;\\s]+"));
+            mimeMessageHelper.setSubject("File Scanner Report — " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+            mimeMessageHelper.setText("File scanner hierarchical report attached.", false);
+            mimeMessageHelper.addAttachment("filescanner-report.zip", zip);
             sender.send(msg);
             log.info("Report sent to {}", to);
             zip.delete();
@@ -62,28 +61,32 @@ public class EmailService {
     }
 
     private JavaMailSenderImpl buildSender() {
-        JavaMailSenderImpl s = new JavaMailSenderImpl();
-        s.setHost(settingsService.get(SettingsService.KEY_SMTP_HOST, "localhost"));
+        JavaMailSenderImpl javaMailSender = new JavaMailSenderImpl();
+        javaMailSender.setHost(settingsService.get(SettingsService.KEY_SMTP_HOST, "localhost"));
         String port = settingsService.get(SettingsService.KEY_SMTP_PORT, "587");
-        s.setPort(Integer.parseInt(port.isBlank() ? "587" : port));
-        s.setUsername(settingsService.get(SettingsService.KEY_SMTP_USER, ""));
-        s.setPassword(settingsService.get(SettingsService.KEY_SMTP_PASS, ""));
-        Properties p = s.getJavaMailProperties();
-        p.put("mail.transport.protocol", "smtp");
+        javaMailSender.setPort(Integer.parseInt(port.isBlank() ? "587" : port));
+        javaMailSender.setUsername(settingsService.get(SettingsService.KEY_SMTP_USER, ""));
+        javaMailSender.setPassword(settingsService.get(SettingsService.KEY_SMTP_PASS, ""));
+        Properties javaMailProperties = javaMailSender.getJavaMailProperties();
+        javaMailProperties.put("mail.transport.protocol", "smtp");
         if ("true".equalsIgnoreCase(settingsService.get(SettingsService.KEY_SMTP_TLS, "true"))) {
-            p.put("mail.smtp.auth", "true");
-            p.put("mail.smtp.starttls.enable", "true");
+            javaMailProperties.put("mail.smtp.auth", "true");
+            javaMailProperties.put("mail.smtp.starttls.enable", "true");
         }
-        return s;
+        return javaMailSender;
     }
 
     public String buildReportText() {
         StringBuilder sb = new StringBuilder();
         sb.append("File Scanner Report\nGenerated: ")
-          .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
-          .append("\n").append("=".repeat(60)).append("\n\n");
-        for (String root : repo.findAllRootPaths()) {
-            repo.findRootEntry(root).ifPresent(e -> appendEntry(sb, e));
+                .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")))
+                .append("\n").append("=".repeat(60)).append("\n\n");
+        for (Object[] row : repo.findAllRootPathsWithDevice()) {
+            String device = (String) row[0];
+            String root = (String) row[1];
+            sb.append("[Device: ").append(device).append("]\n");
+            repo.findRootEntry(device, root).ifPresent(e -> appendEntry(sb, e));
+            sb.append("\n");
         }
         return sb.toString();
     }

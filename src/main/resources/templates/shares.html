@@ -122,8 +122,14 @@
                         </td>
                         <td>
                             <div style="display:flex;gap:6px">
-                                <button class="btn btn-sm"
-                                        th:onclick="'editShare(' + ${share.id} + ',\'' + ${share.path} + '\',\'' + (${share.label}?:'') + '\',\'' + (${share.domain}?:'') + '\',\'' + (${share.username}?:'') + '\',' + ${share.requiresAuth} + ',' + ${share.enabled} + ')'">
+                                <button class="btn btn-sm edit-share-btn"
+                                        th:data-id="${share.id}"
+                                        th:data-path="${share.path}"
+                                        th:data-label="${share.label} ?: ''"
+                                        th:data-domain="${share.domain} ?: ''"
+                                        th:data-username="${share.username} ?: ''"
+                                        th:data-requires-auth="${share.requiresAuth}"
+                                        th:data-enabled="${share.enabled}">
                                     ✏ Edit
                                 </button>
                                 <form th:action="@{/shares/delete}" method="post" style="display:inline">
@@ -255,6 +261,20 @@ function editShare(id, path, label, domain, username, requiresAuth, enabled) {
     document.getElementById('edit-password').value     = '';
     document.getElementById('edit-modal').classList.add('open');
 }
+
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.edit-share-btn');
+    if (!btn) return;
+    editShare(
+        btn.dataset.id,
+        btn.dataset.path,
+        btn.dataset.label,
+        btn.dataset.domain,
+        btn.dataset.username,
+        btn.dataset.requiresAuth === 'true',
+        btn.dataset.enabled === 'true'
+    );
+});
 
 function closeEditModal() {
     document.getElementById('edit-modal').classList.remove('open');
