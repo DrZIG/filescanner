@@ -122,6 +122,15 @@ public class MainController {
         return ResponseEntity.ok(Map.of("success", true));
     }
 
+    @PostMapping("/api/folder/donotprocess/skip-all")
+    @ResponseBody
+    public ResponseEntity<?> skipAllChildFolders(@RequestParam Long parentId) {
+        Optional<FileEntryDto> parent = fileService.findById(parentId);
+        if (parent.isEmpty()) return ResponseEntity.notFound().build();
+        int count = fileService.skipAllChildFolders(parentId);
+        return ResponseEntity.ok(Map.of("success", true, "count", count));
+    }
+
     // ===== SETTINGS =====
 
     @GetMapping("/settings")

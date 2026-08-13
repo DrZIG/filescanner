@@ -162,10 +162,23 @@ public class ScanService {
     protected void performExistenceCheck() {
         scanStatus.setMessage("Verifying existing database records against disk…");
         List<FileEntry> mine = repo.findByDeviceName(deviceName);
+
+        // Check each root (drive letter / UNC path) once. A root that is currently
+        // inaccessible — e.g. a network drive letter not connected right now — must
+        // never cause its entries to be auto-deleted below. Skip those roots entirely;
+        // they can only be removed manually from the Manage Drives page.
+        Map<String, Boolean> rootAccessible = new HashMap<>();
+        for (FileEntry entry : mine) {
+            rootAccessible.computeIfAbsent(entry.getRootPath(), rp -> new File(rp).exists());
+        }
+
         List<FileEntry> toRemove = new ArrayList<>();
         for (FileEntry entry : mine) {
             if (scanStatus.isStopRequested()) {
                 break;
+            }
+            if (!Boolean.TRUE.equals(rootAccessible.get(entry.getRootPath()))) {
+                continue;
             }
             boolean exists = new File(entry.getFullPath()).exists();
             if (!exists) {
@@ -183,6 +196,12 @@ public class ScanService {
         if (!toRemove.isEmpty()) {
             repo.deleteAll(toRemove);
             log.info("Removed {} stale entries for device {}", toRemove.size(), deviceName);
+        }
+
+        long skippedRoots = rootAccessible.values().stream().filter(a -> !a).count();
+        if (skippedRoots > 0) {
+            log.info("Skipped existence check for {} inaccessible root(s) on device {} (drive offline — remove manually if intentional)",
+                    skippedRoots, deviceName);
         }
     }
 
@@ -252,6 +271,11 @@ public class ScanService {
         if (scanStatus.isStopRequested()) {
             return;
         }
+        if (!new File(rootPath).exists()) {
+            log.warn("Root {} became inaccessible during scan — aborting this branch (share may have disconnected or the remote machine went to sleep)", rootPath);
+            scanStatus.setMessage("⚠ " + rootPath + " became unreachable mid-scan — stopped, existing records left untouched.");
+            return;
+        }
 
         File[] children;
         try {
@@ -297,6 +321,12 @@ public class ScanService {
                 scanDirectory(child, folderEntry.getId(), rootPath, depth + 1);
             } else if (child.isFile()) {
                 long size = child.length();
+                if (size == 0 && !child.exists()) {
+                    // Share likely dropped mid-read (e.g. remote laptop went to sleep) —
+                    // don't record a false zero-byte size over a real one.
+                    log.warn("Skipping {} — became unreadable mid-scan", childPath);
+                    continue;
+                }
                 ensureEntry(childPath, child.getName(), parentId, rootPath, true, size, depth);
                 scanStatus.incrementFiles(size);
             }

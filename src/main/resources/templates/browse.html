@@ -28,6 +28,10 @@
                 <input type="checkbox" class="dnp-checkbox" th:data-id="${current.id}" th:checked="${current.doNotProcess}">
                 Do Not Process
             </label>
+            <button id="skip-all-btn" class="btn btn-warning" th:data-id="${current.id}"
+                    th:disabled="${#lists.isEmpty(children)}">
+                🚫 Skip All Sub-folders
+            </button>
             <a th:href="${current.parentId!=null}?'/browse?id='+${current.parentId}:'/'" class="btn">← Back</a>
         </div>
     </div>
@@ -73,6 +77,27 @@
         </div>
     </div>
 </div>
+    <script>
+        document.addEventListener('click', async function(e) {
+            const btn = e.target.closest('#skip-all-btn');
+            if (!btn) return;
+            if (!confirm('Mark every folder directly inside this folder as Do Not Process?\n\nThis will remove all of their existing sub-contents from the database. Files in this folder are unaffected.')) {
+                return;
+            }
+            const parentId = btn.dataset.id;
+            btn.disabled = true;
+            btn.textContent = '⏳ Skipping…';
+            try {
+                const r = await fetch(`/api/folder/donotprocess/skip-all?parentId=${parentId}`, {method: 'POST'});
+                if (!r.ok) throw new Error('Server error');
+                location.reload();
+            } catch (err) {
+                alert('Failed to skip folders: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '🚫 Skip All Sub-folders';
+            }
+        });
+    </script>
 </th:block>
 </div>
 </body>

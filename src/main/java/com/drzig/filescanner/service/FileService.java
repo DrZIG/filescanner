@@ -72,6 +72,32 @@ public class FileService {
         repo.deleteChildrenByPathPrefixes(deviceName, folderPath + "\\%", folderPath + "/%", folderId);
     }
 
+    /**
+     * Marks every direct child folder of the given parent as Do Not Process,
+     * purging each folder's own descendants from the database (same behavior
+     * as the single-folder toggle). Device name is taken from each entry
+     * itself, not the current runtime device, since children may belong to
+     * a different device than the one running this request.
+     * Files directly under the parent are left untouched.
+     *
+     * @return number of folders newly marked
+     */
+    @Transactional
+    public int skipAllChildFolders(Long parentId) {
+        List<FileEntry> children = repo.findByParentIdOrderByFileAscNameAsc(parentId);
+        int count = 0;
+        for (FileEntry entry : children) {
+            if (!entry.isFile() && !entry.isDoNotProcess()) {
+                entry.setDoNotProcess(true);
+                repo.save(entry);
+                repo.deleteChildrenByPathPrefixes(entry.getDeviceName(),
+                        entry.getFullPath() + "\\%", entry.getFullPath() + "/%", entry.getId());
+                count++;
+            }
+        }
+        return count;
+    }
+
     @Transactional
     public void deleteByDeviceAndRootPath(String deviceName, String rootPath) {
         repo.deleteByDeviceNameAndRootPath(deviceName, rootPath);
